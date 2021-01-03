@@ -64,8 +64,9 @@ function dEnergy = ResistiveHeating(currentTemps)
     global params;
     
     for iter = 1 : params.numElements
-       dEnergy(iter) = ((params.current ^ 2) * params.elementLength) / GetConductivity(currentTemps(iter))...
-                       * GetCrossSectionalArea(currentTemps(iter)) * params.timeStep;
+       dEnergy(iter) = ((params.current ^ 2) * params.elementLength)...
+                     / (GetConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter)))...
+                     * params.timeStep;
     end
 end
 
@@ -93,13 +94,13 @@ end
 function fuseDensity = GetDensity(currentTemps)
     global params;
   
-    fuseDensity = params.fuseBaselineDensity ./ ((params.fuseThermalExpansionCoeff ^ 3) .* (currentTemps - params.ambientTemp)); 
+    fuseDensity = params.fuseBaselineDensity ./ (1 + ((params.fuseThermalExpansionCoeff ^ 3) .* (currentTemps - params.ambientTemp))); 
 end
 
 function dTemp = EnergyToTemp(energy, fuseTemps)
     global params;
 
-    dTemp = energy .* GetDensity(fuseTemps) .* GetCrossSectionalArea(fuseTemps) .*  (params.elementLength * params.fuseSpecificHeat) ; %Delta T = Energy/density*Volume*SpecificHeat
+    dTemp = energy ./ (GetDensity(fuseTemps) .* GetCrossSectionalArea(fuseTemps) .*  params.elementLength .* params.fuseSpecificHeat); %Delta T = Energy/density*Volume*SpecificHeat
 end
 
 function dEnergy = ApplyBoundaryConditions(dEnergy)

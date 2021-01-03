@@ -45,14 +45,19 @@ params.prandtlNumber = 0.7 ;
 
 params.elementLength = params.fuseLength / params.numElements;
 
-fuseTemps = repmat (params.ambientTemp, 1, params.numElements); %initialCondition
+%Progress Bar
+progressBar = waitbar(0);
+
+fuseTemps = repmat (params.ambientTemp, 1, params.numElements); %Initial Condition
 loggedTemps(1,:) = fuseTemps;
 for iter = 1 : params.numSteps
     dEnergy = ResistiveHeating(fuseTemps) + ConvectionCooling(fuseTemps)+ ConductionCooling(fuseTemps);
     dEnergy = ApplyBoundaryConditions(dEnergy);
     dTemp = EnergyToTemp(dEnergy, fuseTemps);
     fuseTemps = fuseTemps + dTemp;
-    loggedTemps(iter + 1, :) = fuseTemps; 
+    loggedTemps(iter + 1, :) = fuseTemps;
+    
+    DisplayPercentCompletion(iter, progressBar);
 end
 
 function dEnergy = ResistiveHeating(currentTemps)
@@ -104,5 +109,11 @@ function dEnergy = ApplyBoundaryConditions(dEnergy)
    dEnergy(params.numElements) = 0;
 end
 
-
-
+function DisplayPercentCompletion(iteration, progressBar)
+    global params;
+    
+    completion = iteration / params.numSteps;
+    percentComplete = round(completion * 100 - 0.5); %round down to not show 100% if not complete.
+    waitbar(completion, progressBar, string(percentComplete) + "% Complete"); % show in progress bar
+    disp(string(percentComplete) + "% Complete"); %print to log
+end

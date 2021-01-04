@@ -5,7 +5,7 @@ close all;
 global params;
 
 params.numElements = 100;
-params.timeStep = 1e-2; %seconds
+params.timeStep = 1e-3; %seconds
 params.simTime = 1; %seconds
 
 params.numSteps = params.simTime / params.timeStep;
@@ -51,10 +51,11 @@ progressBar = waitbar(0);
 fuseTemps = repmat (params.ambientTemp, 1, params.numElements); %Initial Condition
 loggedTemps(1,:) = fuseTemps;
 for iter = 1 : params.numSteps
-    dEnergy = ResistiveHeating(fuseTemps) - ConvectionCooling(fuseTemps) - ConductionCooling(fuseTemps); - RadiationCooling(fuseTemps);
+    dEnergy = ResistiveHeating(fuseTemps) + ConvectionCooling(fuseTemps)+ ConductionCooling(fuseTemps) + RadiationCooling(fuseTemps);
     dEnergy = ApplyBoundaryConditions(dEnergy);
     dTemp = EnergyToTemp(dEnergy, fuseTemps);
     fuseTemps = fuseTemps + dTemp;
+    fuseTemps = fuseTemps - 273.13; %Convert from K to C
     loggedTemps(iter + 1, :) = fuseTemps;
     
     DisplayPercentCompletion(iter, progressBar);
@@ -84,14 +85,10 @@ function dEnergy = RadiationCooling(currentTemps)
    global params;
    
    for iter = 1 : params.numElements
-       dEnergy(iter) = (params.fuseEmissivity * params.stefBoltzConst ...
-                     * ((currentTemps(iter) ^ 4) - (params.ambientTemp ^ 4) ...
-                     * ((2 * GetFuseWidth(currentTemps(iter)) + (2 * GetFuseThickness(currentTemps(iter))) * params.elementLength)))) ...
-                     * params.timeStep; 
+       dEnergy(iter) = (params.fuseEmissivity * params.stefBoltzConst * ((currentTemps(iter) ^ 4) - (params.ambientTemp ^ 4) * ((2 * getfusetWidth(currentTemps(iter)) + (2 * params.fuseLength) * params.elementLength)) * params.timeStep; 
+       
    end 
-end 
  
-
 function fuseElectricalConductivity = GetConductivity(temp)
     fuseElectricalConductivity = (5e-5 * temp ^ 2) - (0.0504 * temp) + 70.051; %Defined in Property Approximations
 end
@@ -110,10 +107,10 @@ function fuseWidth = GetFuseWidth(temp)
 end
 
 
-function fuseThickness = GetFuseThickness(temp)
+function fuseThickness = GetFuseThic(temp)
     global params;
     
-    fuseThickness = params.fuseThickness * (1 + (params.fuseThermalExpansionCoeff * (temp - params.ambientTemp))); 
+    fuseWidth = params.fuseWidth * (1 + (params.fuseThermalExpansionCoeff * (temp - params.ambientTemp))); 
 end
 
 function fuseDensity = GetDensity(currentTemps)

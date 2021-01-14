@@ -4,9 +4,9 @@ close all;
 %variables for simulation accuracy
 global params;
 
-params.numElements = 80; %MUST BE AN EVEN NUMBER
+params.numElements = 30; %MUST BE AN EVEN NUMBER
 params.timeStep = 1e-3; %seconds. Needs to be smaller 1e-2 to reduce radiation overshoot
-params.simTime = 20; %seconds
+params.simTime = 50; %seconds
 
 params.numSteps = params.simTime / params.timeStep;
 
@@ -25,9 +25,9 @@ params.fuseThermalExpansionCoeff = 1.4e-5; %1/C
 params.meltingTemp = 1435 + 273.15; %Kelvin
 
 %Fuse Dimensions
-params.fuseWidth = 0.437 * 1e-3; %units of calculation are meters, but enter number in MM!
-params.fuseThickness =  0.437 * 1e-3; %units of calculation are meters, but enter number in MM!
-params.fuseLength = 61 * 1e-3; %m
+params.fuseWidth = 0.810 * 1e-3; %units of calculation are meters, but enter number in MM!
+params.fuseThickness =  0.810 * 1e-3; %units of calculation are meters, but enter number in MM!
+params.fuseLength = 400 * 1e-3; %m
 
 %Air Characteristics
 params.ambientTemp = 303.15; %K
@@ -39,14 +39,26 @@ params.airDensity = 1.225 ;%kg/m^3
 params.prandtlNumber = 0.7 ;
 
 params.elementLength = params.fuseLength / params.numElements;
+params.firstElementLength = params.elementLength / 2; %with small first and last elements
+params.lastElementLength = params.elementLength / 2; %With small first and last elements
 
 params.midpointElement = params.numElements / 2; %for plotting midpoint temperature
+
+
+    
 
 %Progress Bar
 progressBar = waitbar(0);
 
-fuseTemps = repmat (params.ambientTemp, 1, params.numElements); %Initial Condition
-fuseTemps = ApplyBoundaryConditions(fuseTemps);
+fuseTemps = repmat ((params.ambientTemp + 5), 1, params.numElements); %Initial Condition
+
+%Von Neumann Stability
+diffusivity = (GetThermalConductivity(fuseTemps(1)) / (GetDensity(fuseTemps(1)) * params.fuseSpecificHeat));
+vonNeumannStability = (diffusivity * params.timeStep) / (params.firstElementLength ^ 2) 
+if vonNeumannStability > 0.5
+    disp("Unstable");
+    pause; 
+end 
 
 loggedTemps(1,:) = fuseTemps;
 loggedRadiationCooling(1,:) = RadiationCooling(fuseTemps);
@@ -57,11 +69,9 @@ loggedConvectionCooling(1,:) = ConvectionCooling(fuseTemps);
 for iter = 1 : params.numSteps
 
     loggedConvectionCooling(iter + 1,:) = ConvectionCooling(fuseTemps);
-    dEnergy = ResistiveHeating(fuseTemps) + ConductionCooling(fuseTemps); % - (ConvectionCooling(fuseTemps)) - RadiationCooling(fuseTemps) %  %Conduction MUST be positive, sign is accounted for in the conduction cooling function! 
+    dEnergy = ResistiveHeating(fuseTemps) + ConductionCooling(fuseTemps) - (ConvectionCooling(fuseTemps)) - RadiationCooling(fuseTemps);  %  %  %Conduction MUST be positive, sign is accounted for in the conduction cooling function! 
     dTemp = EnergyToTemp(dEnergy, fuseTemps);
     fuseTemps = fuseTemps + dTemp;
-    fuseTemps = ApplyBoundaryConditions(fuseTemps);
-%     fuseTemps = ApplyContinuityConditions(fuseTemps);
     loggedTemps(iter + 1, :) = fuseTemps;
     loggedRadiationCooling(iter + 1, :) = RadiationCooling(fuseTemps);
     loggedResistiveHeating(iter + 1, :) = ResistiveHeating(fuseTemps);
@@ -106,97 +116,111 @@ legend( 'resistive heating', 'conduction'); %'Resistive Heating',
 function dEnergy = ResistiveHeating(currentTemps)
     global params;
     
-    for iter = 1 : params.numElements
-       dEnergy(iter) = (((params.current ^ 2) * params.elementLength * GetElectricalResistivity(currentTemps(iter)))...
+    for iter = 1 : params.numElements 
+     if iter == 1 
+          
+         dEnergy(iter) = (((params.current ^ 2) * params.firstElementLength * GetElectricalResistivity(currentTemps(iter)))...
                      / ( GetCrossSectionalArea(currentTemps(iter)))) * params.timeStep;
+               
+     elseif iter == params.numElements
+         
+         dEnergy(iter) = (((params.current ^ 2) * params.lastElementLength * GetElectricalResistivity(currentTemps(iter)))...
+                     / ( GetCrossSectionalArea(currentTemps(iter)))) * params.timeStep;
+                  
+     else
+         
+         dEnergy(iter) = (((params.current ^ 2) * params.elementLength * GetElectricalResistivity(currentTemps(iter)))...
+                     / ( GetCrossSectionalArea(currentTemps(iter)))) * params.timeStep;
+     end 
     end
 end
 
+
 function dEnergy = ConductionCooling(currentTemps)
    global params;
-   global leftConduction;
-   global rightConduction;
    
-   for iter = 1 : params.numElements %There is no conduction from the left for the first element
-       global leftConduction;
-       
-       if iter == 1 
-          leftConduction(1) = 0; 
-       else
-          leftConduction(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
-                      * (currentTemps(iter - 1) - currentTemps(iter))) / params.elementLength) * params.timeStep); %
-       end
-   end
-   
-   for iter = 1 : (params.numElements) %There is no conduction from the right for the last element
-      global rightConduction; 
-       
-      if iter == params.numElements 
-          rightConduction(params.numElements) = 0;
-      else
-          rightConduction(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
-                      * (currentTemps(iter + 1) - currentTemps(iter))) / params.elementLength) * params.timeStep);
-      end 
+       for iter = 1 : params.numElements 
+          if iter == 1 
+
+             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
+                           * (currentTemps(iter + 1) - (2 * currentTemps(iter)) + params.ambientTemp)) / params.firstElementLength) * params.timeStep);
+
+         elseif iter == params.numElements
+
+
+             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
+                           * (currentTemps(iter - 1) - (2 * currentTemps(iter)) + params.ambientTemp)) / params.lastElementLength) * params.timeStep);
+
+        else
+
+             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
+                           * (currentTemps(iter + 1) - (2 * currentTemps(iter)) + currentTemps(iter - 1))) / params.elementLength) * params.timeStep);
+       end 
    end 
-   
-   dEnergy = leftConduction + rightConduction; 
-   
-   for iter = 1 : params.numElements
-        if dEnergy(iter) > 0
-            dEnergy(iter) = 0;
-        end
-   end    
-end
+end 
+
 
 function dEnergy = RadiationCooling(currentTemps)
    global params;
    
-   for iter = 1 : params.numElements
-       dEnergy(iter) = (params.fuseEmissivity * params.stefBoltzConst ...
+   for iter = 1 : params.numElements 
+     if iter == 1 
+          
+         dEnergy(iter) = (params.fuseEmissivity * params.stefBoltzConst ...
+                     * ((currentTemps(iter) ^ 4) - (params.ambientTemp ^ 4)) ...
+                     * ((2 * GetFuseWidth(currentTemps(iter)) + (2 * GetFuseThickness(currentTemps(iter))) * params.firstElementLength))) ...
+                     * params.timeStep; 
+               
+     elseif iter == params.numElements
+         
+         dEnergy(iter) = (params.fuseEmissivity * params.stefBoltzConst ...
+                     * ((currentTemps(iter) ^ 4) - (params.ambientTemp ^ 4)) ...
+                     * ((2 * GetFuseWidth(currentTemps(iter)) + (2 * GetFuseThickness(currentTemps(iter))) * params.lastElementLength))) ...
+                     * params.timeStep; 
+                  
+     else
+         
+         dEnergy(iter) = (params.fuseEmissivity * params.stefBoltzConst ...
                      * ((currentTemps(iter) ^ 4) - (params.ambientTemp ^ 4)) ...
                      * ((2 * GetFuseWidth(currentTemps(iter)) + (2 * GetFuseThickness(currentTemps(iter))) * params.elementLength))) ...
                      * params.timeStep; 
-
+     end 
    end 
 end 
  
 function dEnergy = ConvectionCooling(currentTemps)
    global params;
-   
+
+   %OLD Rayleigh and Nusselt Number Derivations
 %    RayleighNumbers = (GetGrasofNumbers(currentTemps) * params.prandtlNumber);
-   nusseltNumbers = ((4 / 3) * ((GetGrasofNumbers(currentTemps) / 4) .^ (0.25)) * 0.499);
-   %   nusseltNumbers = (0.68 + ((0.67 * (RayleighNumbers .^(1/4))) / (1 + (0.492 / params.prandtlNumber) ^ (9/16)) ^ (4/9)));
-   convectionCoefficient = ((params.airThermalConductivity .* nusseltNumbers) ./ GetFuseWidth(currentTemps));
-   dEnergy = (convectionCoefficient .* (2 .* GetFuseWidth(currentTemps) .* params.elementLength) .* (currentTemps - params.ambientTemp) .* params.timeStep); %h*A(surface, both sides)*deltaT*time
+%   nusseltNumbers = (0.68 + ((0.67 * (RayleighNumbers .^(1/4))) / (1 + (0.492 / params.prandtlNumber) ^ (9/16)) ^ (4/9)));
+   
+ for iter = 1 : params.numElements 
+     
+     if iter == 1 
+          
+        nusseltNumber = ((4 / 3) * ((GetGrasofNumber(currentTemps(iter)) / 4) .^ (0.25)) * 0.499);
+        convectionCoefficient = ((params.airThermalConductivity .* nusseltNumber) / GetFuseWidth(currentTemps(iter)));
+        dEnergy(iter) = (convectionCoefficient * (2 * GetFuseWidth(currentTemps(iter)) * params.firstElementLength) * (currentTemps(iter) - params.ambientTemp) .* params.timeStep); %h*A(surface, both sides)*deltaT*time
+               
+     elseif iter == params.numElements
+         
+        nusseltNumber = ((4 / 3) * ((GetGrasofNumbers(currentTemps(iter)) / 4) .^ (0.25)) * 0.499);
+        convectionCoefficient = ((params.airThermalConductivity .* nusseltNumber) / GetFuseWidth(currentTemps(iter)));
+        dEnergy(iter) = (convectionCoefficient * (2 * GetFuseWidth(currentTemps(iter)) * params.lastElementLength) * (currentTemps(iter) - params.ambientTemp) .* params.timeStep); %h*A(surface, both sides)*deltaT*time                 
+     else
+         
+        nusseltNumber = ((4 / 3) * ((GetGrasofNumbers(currentTemps(iter)) / 4) .^ (0.25)) * 0.499);
+        convectionCoefficient = ((params.airThermalConductivity .* nusseltNumber) / GetFuseWidth(currentTemps(iter)));
+        dEnergy(iter) = (convectionCoefficient * (2 * GetFuseWidth(currentTemps(iter)) * params.elementLength) * (currentTemps(iter) - params.ambientTemp) .* params.timeStep); %h*A(surface, both sides)*deltaT*time     end 
 end
  
-function GrasofNumbers = GetGrasofNumbers(currentTemps)
+function GrasofNumber = GetGrasofNumbers(currentTemps)
     global params;
     
-    for iter = 1 : params.numElements
-        GrasofNumbers(iter) = (params.gravity * GetAirThermalExpansionCoeff(currentTemps(iter)) * (currentTemps(iter) - params.ambientTemp)...
-                            * (GetFuseWidth(currentTemps(iter)) ^ 3)) / (GetAirKinematicViscosity(currentTemps(iter)) ^ 2) ;
-    end 
+    GrasofNumber(iter) = (params.gravity * GetAirThermalExpansionCoeff(currentTemps(iter)) * (currentTemps(iter) - params.ambientTemp)...
+                            * (GetFuseWidth(currentTemps(iter)) ^ 3)) / (GetAirKinematicViscosity(currentTemps(iter)) ^ 2);
 end 
-
-
-
-function fuseTemps = ApplyContinuityConditions(fuseTemps)
-    global params;
-    
-    for iter = 2 : params.midpointElement
-        if fuseTemps(iter - 1) > fuseTemps(iter)
-            fuseTemps(iter) = fuseTemps(iter - 1);
-        end
-    end 
-    
-    for iter = params.midpointElement : (params.numElements - 1)
-        if fuseTemps(iter) < fuseTemps(iter + 1)
-            fuseTemps(iter) = fuseTemps(iter + 1);
-        end
-    end 
-    
-end
 
 function airDensity = GetAirDensity(temp)
     global params;
@@ -265,17 +289,31 @@ function fuseThickness = GetFuseThickness(temp)
     fuseThickness = params.fuseThickness * (1 + (params.fuseThermalExpansionCoeff * (temp - params.ambientTemp))); 
 end
 
-function fuseDensity = GetDensity(currentTemps)
+function fuseDensity = GetDensity(temp)
     global params;
-    fuseDensity = repmat (8900, 1, params.numElements); %Initial Condition
+%     fuseDensity = repmat (8900, 1, params.numElements); %Initial Condition
 
-    %fuseDensity = params.fuseBaselineDensity / (1 + ((params.fuseThermalExpansionCoeff ^ 2) * (currentTemps - params.ambientTemp))); 
+    fuseDensity = params.fuseBaselineDensity / (1 + ((params.fuseThermalExpansionCoeff ^ 2) * (temp - params.ambientTemp))); 
 end
 
 function dTemp = EnergyToTemp(energy, fuseTemps)
     global params;
 
-    dTemp = energy ./ (GetDensity(fuseTemps) .* GetCrossSectionalArea(fuseTemps) .*  params.elementLength * params.fuseSpecificHeat); %Delta T = Energy/density*Volume*SpecificHeat
+    for iter = 1 : params.numElements 
+     if iter == 1 
+          
+             dTemp(iter) = energy(iter) / (GetDensity(fuseTemps(iter)) * GetCrossSectionalArea(fuseTemps(iter)) *  params.firstElementLength * params.fuseSpecificHeat); %Delta T = Energy/density*Volume*SpecificHeat
+
+               
+     elseif iter == params.numElements
+         
+             dTemp(iter) = energy(iter) / (GetDensity(fuseTemps(iter)) * GetCrossSectionalArea(fuseTemps(iter)) *  params.lastElementLength * params.fuseSpecificHeat); %Delta T = Energy/density*Volume*SpecificHeat
+     else
+         
+             dTemp(iter) = energy(iter) / (GetDensity(fuseTemps(iter)) * GetCrossSectionalArea(fuseTemps(iter)) *  params.elementLength * params.fuseSpecificHeat); %Delta T = Energy/density*Volume*SpecificHeat
+
+     end 
+    end 
 end
 
 

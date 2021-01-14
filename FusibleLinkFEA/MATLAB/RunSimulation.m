@@ -7,7 +7,7 @@ global params;
 
 params.numElements = 30; %MUST BE AN EVEN NUMBER
 params.timeStep = 1e-1; %seconds. Needs to be smaller 1e-2 to reduce radiation overshoot
-params.simTime = 500; %seconds
+params.simTime = 50; %seconds
 
 params.numSteps = params.simTime / params.timeStep;
 
@@ -53,7 +53,7 @@ fuseTemps = repmat ((params.ambientTemp), 1, params.numElements); %Initial Condi
 
 %Von Neumann Stability
 diffusivity = (GetThermalConductivity(fuseTemps(1)) / (GetDensity(fuseTemps(1)) * params.fuseSpecificHeat));
-vonNeumannStability = (diffusivity * params.timeStep) / (params.firstElementLength ^ 2) 
+vonNeumannStability = (diffusivity * params.timeStep) / (params.firstElementLength ^ 2);
 if vonNeumannStability > 0.5
     disp("Unstable");
     pause; 
@@ -81,33 +81,51 @@ end
 
 
 figure; %Temperatures of the middle element (50) during SimTime
-plot(loggedTemps(:,params.midpointElement),'o');
+plot((0:params.timeStep:params.simTime),loggedTemps(:,params.midpointElement),'o');
 title('Midpoint Temp vs. Time');
-xlabel('Time (0.01seconds)');
-ylabel('Temperature, K');
+xlabel('Time (s)');
+ylabel('Temperature (K)');
 %yline(params.meltingTemp, 'r-', 'Melting Point', 'LineWidth', 2);
 
 
 figure; %Temperatures along fuse at end of SimTime
 plot(loggedTemps(end,:),'o');
-title('Solution Profile');
-xlabel('Time (0.01seconds)');
-ylabel('Temperature, K');
-
-figure; %Temperatures along fuse at end of SimTime
-plot(loggedResistiveHeating(:, params.midpointElement),'x');
-hold on;
-%plot(loggedRadiationCooling(:, params.midpointElement),'x');
-hold on;
-plot(loggedConductionCooling(:, params.midpointElement),'o');
-%hold on;
-%plot(loggedConvectionCooling(:, 50),'o');
-title('Energy By Heat Transfer Type');
-xlabel('Time (0.01seconds)');
-ylabel('Energy, Joules');
-legend( 'resistive heating', 'conduction'); %'Resistive Heating',
+title(['Solution Profile at t = ' num2str(params.simTime) 's']);
+xlabel('Element Number');
+ylabel('Temperature (K)');
 
 
+%Energy by heat type wrt time
+figure; 
+%ON SAME AXIS
+% plot((0:params.timeStep:params.simTime),loggedResistiveHeating(:, params.midpointElement),'x');
+% hold on;
+% plot((0:params.timeStep:params.simTime),loggedRadiationCooling(:,params.midpointElement),'x');
+% hold on;
+% plot((0:params.timeStep:params.simTime),loggedConductionCooling(:, params.midpointElement),'o');
+% hold on;
+% plot((0:params.timeStep:params.simTime),loggedConvectionCooling(:,params.midpointElement),'o');
+% title('Energy By Heat Transfer Type');
+% xlabel('Time (s)');
+% ylabel('Energy (J)');
+% legend('Resitive Heating', 'Radiation','Conduction','Convection');
+%ON DIFFERENT AXES
+EnergyYs = cat(2,loggedResistiveHeating(:,params.midpointElement),loggedRadiationCooling(:,params.midpointElement),loggedConductionCooling(:,params.midpointElement),loggedConvectionCooling(:,params.midpointElement));
+titles = {'Energy By Resistive Heating','Energy By Radiation Cooling','Energy By Conduction Cooling','Energy By Convection Cooling'};
+ for i=1:4
+     subplot(2,2,i)
+     plot((0:params.timeStep:params.simTime),EnergyYs(:,i),'o')
+     title(titles{i})
+     ylabel('Energy (J)')
+     xlabel('Time (s)')
+ end
+
+figure; %3D plot of Temp vs. Time at every element
+surf(1:params.numElements,(0:params.timeStep:params.simTime),loggedTemps,'FaceLighting','flat','EdgeAlpha','0.3')
+xlabel('Element');
+ylabel('Time (s)');
+zlabel('Temperature (K)');
+title('Temperature as Function of Time and Element (Lateral Fuse Position)');
 
 function dEnergy = ResistiveHeating(currentTemps)
     global params;
@@ -141,18 +159,18 @@ function dEnergy = ConductionCooling(currentTemps)
              dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
                            * (currentTemps(iter + 1) - (2 * currentTemps(iter)) + params.ambientTemp)) / params.firstElementLength) * params.timeStep);
 
-         elseif iter == params.numElements
+          elseif iter == params.numElements
 
 
              dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
                            * (currentTemps(iter - 1) - (2 * currentTemps(iter)) + params.ambientTemp)) / params.lastElementLength) * params.timeStep);
 
-        else
+          else
 
              dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
                            * (currentTemps(iter + 1) - (2 * currentTemps(iter)) + currentTemps(iter - 1))) / params.elementLength) * params.timeStep);
-       end 
-   end 
+          end 
+      end 
 end 
 
 
@@ -246,7 +264,7 @@ function airThermalConductivity = GetAirThermalConductivity(temp)
     global params;
     
     filmTemp = ((temp + params.ambientTemp) / 2); %calculated at the film temperature
-    airThermalConductivity = ((-2e-0))%%%%% * filmTemp ^ 2) + (0.0819 * filmTemp) + 2.9501);
+    airThermalConductivity = ((-2e-0));%%%%% * filmTemp ^ 2) + (0.0819 * filmTemp) + 2.9501);
 end 
 
 function airVolumetricExpansionCoeff = GetAirThermalExpansionCoeff(temp)

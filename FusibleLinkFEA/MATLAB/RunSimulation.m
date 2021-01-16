@@ -1,13 +1,18 @@
 clear all;
 close all;
-
 %variables for simulation accuracy
 global params;
-
+%Material
+% params.mat=input('Enter fuse material (Ni or Cu):','s');
+% while (params.mat ~= "Ni")&&(params.mat ~= "Cu")
+%     fprintf("Unknown material")
+%     params.mat=input('Enter fuse material (Ni or Cu):','s');
+% end
+params.mat = "Cu"; %Either Cu or Ni
 
 params.numElements = 30; %MUST BE AN EVEN NUMBER
 params.timeStep = 1e-1; %seconds. Needs to be smaller 1e-2 to reduce radiation overshoot
-params.simTime = 500; %seconds
+params.simTime = 60; %seconds
 
 params.numSteps = params.simTime / params.timeStep;
 
@@ -19,16 +24,26 @@ params.gravity = 9.8; %m/s^2
 params.current = 45; %amps
 
 %Fuse Properties
-params.fuseBaselineDensity = 8900;%kg/m^3
-params.fuseSpecificHeat = 385; %J/kg*C nickel = 456
-params.fuseEmissivity = 0.1; %Nickel, not polished = 0.07. %Copper, ~0.1
-params.fuseThermalExpansionCoeff = 1.4e-5; %1/C
-params.meltingTemp = 1435 + 273.15; %Kelvin
+if params.mat == "Ni" %Nickel
+    params.fuseBaselineDensity = 8900; %kg/m^3
+    params.fuseSpecificHeat = 456; %J/kg*C 
+    params.fuseEmissivity = 0.07; %Nickel, not polished = 0.07.
+    params.fuseThermalExpansionCoeff = 1.4e-5; %1/C 
+    params.meltingTemp = 1435 + 273.15; %Kelvin NOT SURE WHICH THIS IS YET
+
+else %params.mat == "Cu" %Copper - Taken from engineering toolbox
+    params.fuseBaselineDensity = 8940; %kg/m^3
+    params.fuseSpecificHeat = 385; %J/kg*C
+    params.fuseEmissivity = 0.1; %%Copper, ~0.1
+    params.fuseThermalExpansionCoeff = 1.635e-5; %1/C cited as betwn 16 &16.7 e-6
+    params.meltingTemp = 1084 + 273.15; %Kelvin 
+
+end
 
 %Fuse Dimensions
 params.fuseWidth = 0.810 * 1e-3; %units of calculation are meters, but enter number in MM!
 params.fuseThickness =  0.810 * 1e-3; %units of calculation are meters, but enter number in MM!
-params.fuseLength = 400 * 1e-3; %m
+params.fuseLength = 400 * 1e-3; %units of calculation are meters, but enter number in MM!
 
 %Air Characteristics
 params.ambientTemp = 303.15; %K
@@ -52,8 +67,8 @@ progressBar = waitbar(0);
 fuseTemps = repmat ((params.ambientTemp), 1, params.numElements); %Initial Condition
 
 %Von Neumann Stability
-diffusivity = (GetThermalConductivity(fuseTemps(1)) / (GetDensity(fuseTemps(1)) * params.fuseSpecificHeat));
-vonNeumannStability = (diffusivity * params.timeStep) / (params.firstElementLength ^ 2) 
+diffusivity = (GetThermalConductivity(fuseTemps(1),params.mat) / (GetDensity(fuseTemps(1)) * params.fuseSpecificHeat));
+vonNeumannStability = (diffusivity * params.timeStep) / (params.firstElementLength ^ 2);
 if vonNeumannStability > 0.5
     disp("Unstable");
     pause; 
@@ -81,33 +96,51 @@ end
 
 
 figure; %Temperatures of the middle element (50) during SimTime
-plot(loggedTemps(:,params.midpointElement),'o');
+plot((0:params.timeStep:params.simTime),loggedTemps(:,params.midpointElement),'o');
 title('Midpoint Temp vs. Time');
-xlabel('Time (0.01seconds)');
-ylabel('Temperature, K');
+xlabel('Time (s)');
+ylabel('Temperature (K)');
 %yline(params.meltingTemp, 'r-', 'Melting Point', 'LineWidth', 2);
 
 
 figure; %Temperatures along fuse at end of SimTime
 plot(loggedTemps(end,:),'o');
-title('Solution Profile');
-xlabel('Time (0.01seconds)');
-ylabel('Temperature, K');
-
-figure; %Temperatures along fuse at end of SimTime
-plot(loggedResistiveHeating(:, params.midpointElement),'x');
-hold on;
-%plot(loggedRadiationCooling(:, params.midpointElement),'x');
-hold on;
-plot(loggedConductionCooling(:, params.midpointElement),'o');
-%hold on;
-%plot(loggedConvectionCooling(:, 50),'o');
-title('Energy By Heat Transfer Type');
-xlabel('Time (0.01seconds)');
-ylabel('Energy, Joules');
-legend( 'resistive heating', 'conduction'); %'Resistive Heating',
+title(['Solution Profile at t = ' num2str(params.simTime) 's']);
+xlabel('Element Number');
+ylabel('Temperature (K)');
 
 
+%Energy by heat type wrt time
+figure; 
+%ON SAME AXIS
+% plot((0:params.timeStep:params.simTime),loggedResistiveHeating(:, params.midpointElement),'x');
+% hold on;
+% plot((0:params.timeStep:params.simTime),loggedRadiationCooling(:,params.midpointElement),'x');
+% hold on;
+% plot((0:params.timeStep:params.simTime),loggedConductionCooling(:, params.midpointElement),'o');
+% hold on;
+% plot((0:params.timeStep:params.simTime),loggedConvectionCooling(:,params.midpointElement),'o');
+% title('Energy By Heat Transfer Type');
+% xlabel('Time (s)');
+% ylabel('Energy (J)');
+% legend('Resitive Heating', 'Radiation','Conduction','Convection');
+%ON DIFFERENT AXES
+EnergyYs = cat(2,loggedResistiveHeating(:,params.midpointElement),loggedRadiationCooling(:,params.midpointElement),loggedConductionCooling(:,params.midpointElement),loggedConvectionCooling(:,params.midpointElement));
+titles = {'Energy By Resistive Heating','Energy By Radiation Cooling','Energy By Conduction Cooling','Energy By Convection Cooling'};
+ for i=1:4
+     subplot(2,2,i)
+     plot((0:params.timeStep:params.simTime),EnergyYs(:,i),'o')
+     title(titles{i})
+     ylabel('Energy (J)')
+     xlabel('Time (s)')
+ end
+
+figure; %3D plot of Temp vs. Time at every element
+surf(1:params.numElements,(0:params.timeStep:params.simTime),loggedTemps,'FaceLighting','flat','EdgeAlpha','0.3')
+xlabel('Element');
+ylabel('Time (s)');
+zlabel('Temperature (K)');
+title('Temperature as Function of Time and Element (Lateral Fuse Position)');
 
 function dEnergy = ResistiveHeating(currentTemps)
     global params;
@@ -115,17 +148,17 @@ function dEnergy = ResistiveHeating(currentTemps)
     for iter = 1 : params.numElements 
      if iter == 1 
           
-         dEnergy(iter) = (((params.current ^ 2) * params.firstElementLength * GetElectricalResistivity(currentTemps(iter)))...
+         dEnergy(iter) = (((params.current ^ 2) * params.firstElementLength * GetElectricalResistivity(currentTemps(iter),params.mat))...
                      / ( GetCrossSectionalArea(currentTemps(iter)))) * params.timeStep;
                
      elseif iter == params.numElements
          
-         dEnergy(iter) = (((params.current ^ 2) * params.lastElementLength * GetElectricalResistivity(currentTemps(iter)))...
+         dEnergy(iter) = (((params.current ^ 2) * params.lastElementLength * GetElectricalResistivity(currentTemps(iter),params.mat))...
                      / ( GetCrossSectionalArea(currentTemps(iter)))) * params.timeStep;
                   
      else
          
-         dEnergy(iter) = (((params.current ^ 2) * params.elementLength * GetElectricalResistivity(currentTemps(iter)))...
+         dEnergy(iter) = (((params.current ^ 2) * params.elementLength * GetElectricalResistivity(currentTemps(iter),params.mat))...
                      / ( GetCrossSectionalArea(currentTemps(iter)))) * params.timeStep;
      end 
     end
@@ -138,21 +171,21 @@ function dEnergy = ConductionCooling(currentTemps)
        for iter = 1 : params.numElements 
           if iter == 1 
 
-             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
+             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter),params.mat) * GetCrossSectionalArea(currentTemps(iter))...
                            * (currentTemps(iter + 1) - (2 * currentTemps(iter)) + params.ambientTemp)) / params.firstElementLength) * params.timeStep);
 
-         elseif iter == params.numElements
+          elseif iter == params.numElements
 
 
-             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
+             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter),params.mat) * GetCrossSectionalArea(currentTemps(iter))...
                            * (currentTemps(iter - 1) - (2 * currentTemps(iter)) + params.ambientTemp)) / params.lastElementLength) * params.timeStep);
 
-        else
+          else
 
-             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter)) * GetCrossSectionalArea(currentTemps(iter))...
+             dEnergy(iter) = (((GetThermalConductivity(currentTemps(iter),params.mat) * GetCrossSectionalArea(currentTemps(iter))...
                            * (currentTemps(iter + 1) - (2 * currentTemps(iter)) + currentTemps(iter - 1))) / params.elementLength) * params.timeStep);
-       end 
-   end 
+          end 
+      end 
 end 
 
 
@@ -246,7 +279,7 @@ function airThermalConductivity = GetAirThermalConductivity(temp)
     global params;
     
     filmTemp = ((temp + params.ambientTemp) / 2); %calculated at the film temperature
-    airThermalConductivity = ((-2e-0))%%%%% * filmTemp ^ 2) + (0.0819 * filmTemp) + 2.9501);
+    airThermalConductivity = ((-2e-0)* filmTemp ^ 2) + (0.0819 * filmTemp) + 2.9501;
 end 
 
 function airVolumetricExpansionCoeff = GetAirThermalExpansionCoeff(temp)
@@ -256,21 +289,30 @@ function airVolumetricExpansionCoeff = GetAirThermalExpansionCoeff(temp)
     airVolumetricExpansionCoeff = 1 / filmTemp; %Ideal gas
 end 
 
-function fuseElectricalResistivity = GetElectricalResistivity(temp)
-    fuseElectricalResistivity = 1.724e-8; % copper
-   % nickel = fuseElectricalResistivity = ((0.0004 * temp) + 0.0085 ) * 10e-5; % Linear Approximation
-%   fuseElectricalResistivity = (((-3e-7 * (temp ^ 2)) + (0.0008 * temp) - 0.1369) * 10e-6); %2nd order polynomial, fails after 1500K!!
+function fuseElectricalResistivity = GetElectricalResistivity(temp,metal)
+    if metal == "Ni" %Nickel stuff
+        fuseElectricalResistivity = 10e-5;
+        %fuseElectricalResistivity = ((0.0004 * temp) + 0.0085 ) * 10e-5; % Linear Approximation
+        %fuseElectricalResistivity = (((-3e-7 * (temp ^ 2)) + (0.0008 * temp) - 0.1369) * 10e-6); %2nd order polynomial, fails after 1500K!!
+    else%if metal == "Cu" %Copper stuff
+        %fuseElectricalResistivity = 1.724e-8; % copper
+        fuseElectricalResistivity = 1.724e-8 * (1 + 4.29e-3 * (temp - 293.15)); %from resistivity formula
+    end
 end
 
-function fuseThermalConductivity = GetThermalConductivity(temp)
-    fuseThermalConductivity = 385; %copper
-    % Nickel = fuseThermalConductivity = (0.00005 * (temp^2)) - (0.0782 * temp) + 87.622;
-    %fuseThermalConductivity = (5 * 10e-4 * (temp ^ 2)) - (0.0782 * temp) + 87.622;
+function fuseThermalConductivity = GetThermalConductivity(temp,metal)
+    if metal == "Ni" %Nickel stuff
+        fuseThermalConductivity = (0.00005 * (temp^2)) - (0.0782 * temp) + 87.622; %Linear
+        %fuseThermalConductivity = (5 * 10e-4 * (temp ^ 2)) - (0.0782 * temp) + 87.622; % 2nd order poly
+    else%if metal == "Cu" %Copper stuff
+        %fuseThermalConductivity = 385; %copper
+        fuseThermalConductivity = -0.0695 * temp + 425.57; %Linear
+        %fuseThermalConductivity = 8e-06 * (temp^2) - 0.0802 *temp + 428.28; %2nd order poly
+    end
 end
 
 function crossSectionalArea = GetCrossSectionalArea(temp)
     global params;
-    
     crossSectionalArea = params.fuseWidth * params.fuseThickness; %base cross sectional area
     crossSectionalArea = crossSectionalArea * (1 + (params.fuseThermalExpansionCoeff ^ 2 * (temp - params.ambientTemp))); %thermal expansion term. coefficient of thermal expansion varies with temperature (do this)
 end
@@ -297,7 +339,7 @@ end
 function dTemp = EnergyToTemp(energy, fuseTemps)
     global params;
 
-    for iter = 1 : params.numElements 
+    for iter = 1 : params.numElements
      if iter == 1 
           
              dTemp(iter) = energy(iter) / (GetDensity(fuseTemps(iter)) * GetCrossSectionalArea(fuseTemps(iter)) *  params.firstElementLength * params.fuseSpecificHeat); %Delta T = Energy/density*Volume*SpecificHeat

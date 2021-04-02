@@ -1,4 +1,5 @@
 maxMotorTorque = 100; % in Nm
+maxRegenTorque = 100; % in Nm
 maxEngineTorque = 80; % in Nm
 maxMotorTemp = 135;   % in Fahrenheit
 maxEngineTemp = 240;  % in Fahrenheit

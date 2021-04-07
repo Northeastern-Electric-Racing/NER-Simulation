@@ -20,8 +20,3 @@ engineSpeedBreakpoints = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] * 1000;
 
 
 initialFuel = 100; % NEED TO SET TO CORRECT AMOUNT
-
-
-
-
-

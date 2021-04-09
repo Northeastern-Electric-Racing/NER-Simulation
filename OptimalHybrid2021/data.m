@@ -5,10 +5,11 @@ motorVoltage = 140;
 motorTorques = [80 80 80 80 80 80 80 80 71.62 63.66 57.30 52.09 47.75 44.07 40.93];
 motorSpeeds = [0 500 1000 1500 2000 2500 3000 3580.977845 4000 4500 5000 5500 6000 6500 7000] * pi/30;
 
+figure(1);
 plot(motorSpeeds, motorTorques);
 axis([0, 1000, 0, 100]);
 
-maxEngineTorque = 80; % in Nm
+maxEngineTorque = 26.16; % in Nm
 
 maxEngineTemp = 240;  % in Fahrenheit
 
@@ -18,5 +19,7 @@ engineTorqueMap = [0,0;4,4.1;8,8.1;10.7,10.8;9.2,9.3;11.8,11.9;14.8,14.9;17.3,17
 engineTorqueBreakpoints = [0:1.378:19.3];
 engineSpeedBreakpoints = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] * 1000;
 
+figure(2);
+plot(engineSpeedBreakpoints, engineTorqueBreakpoints);
 
-initialFuel = 100; % NEED TO SET TO CORRECT AMOUNT
+initialFuel = 2.834; % in Liters 

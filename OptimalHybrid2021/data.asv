@@ -13,7 +13,7 @@ maxEngineTorque = 26.16; % in Nm
 
 maxEngineTemp = 240;  % in Fahrenheit
 
-efficiencyTrq = [0:5.714:80];
+efficiencyTrq = [0::80]
 
 efficiency = [
     52 78 80 82 82 82 82 82 82 80 78 78 76 74 70; 

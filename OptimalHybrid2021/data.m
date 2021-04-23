@@ -1,20 +1,11 @@
+% ELECTRIC MOTOR VALUES
 maxMotorTorque = 80; % in Nm
 maxRegenTorque = 80; % in Nm
 maxMotorTemp = 135;   % in Fahrenheit
 motorVoltage = 140;
+
 motorTorques = [80 80 80 80 80 80 80 80 71.62 63.66 57.30 52.09 47.75 44.07 40.93 20 0];
 motorSpeeds = [0 500 1000 1500 2000 2500 3000 3580.977845 4000 4500 5000 5500 6000 6500 7000 8000 9000] * pi/30;
-
-figure(1);
-plot(motorSpeeds, motorTorques);
-axis([0, 1000, 0, 100]);
-
-maxEngineTorque = 26.16; % in Nm
-
-maxEngineTemp = 240;  % in Fahrenheit
-
-efficiencyTrq = [0:5:80];
-
 efficiency = [
     52 78 80 82 82 82 82 82 82 82 82 80 78 78 76 74 70; 
     52 78 80 82 82 82 82 82 82 82 82 80 78 78 76 74 70;
@@ -35,12 +26,26 @@ efficiency = [
 	52 82 88 90 91 91 92 92 92 92 92 92 92 92 92 91 91;];
 
 
+
+% IC ENGINE VALUES
+maxEngineTorque = 26.16; % in Nm
+maxEngineTemp = 240;  % in Fahrenheit
+
+efficiencyTrq = [0:5:80];
 engineTorqueMap = [0,0;4,4.1;8,8.1;10.7,10.8;9.2,9.3;11.8,11.9;14.8,14.9;17.3,17.4;
     18,18.1;19.2,19.3;18,18.1;17.8,17.9;17.5,17.6;16,16.1;15,15.1] * 1.3558;
 engineTorqueBreakpoints = [0:1.378:19.3];
 engineSpeedBreakpoints = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] * 1000;
 
-figure(2);
-plot(engineSpeedBreakpoints, engineTorqueBreakpoints);
-
 initialFuel = 2.834; % in Liters 
+
+
+
+% PLOT OF POWER BREAKPOINTS
+plotSpeeds = [0, 25, 25.01, 40, 40.01, 52, 52.01, 100];
+plotEngineBreak = [0.6, 0.6, 0.8, 0.8, 1, 1, 1, 1];
+plotMotorBreak = [1, 1, 0.8, 0.8, 0.6, 0.6, 0, 0];
+figure(3);
+plot(plotSpeeds, plotEngineBreak);
+hold
+plot(plotSpeeds, plotMotorBreak);
